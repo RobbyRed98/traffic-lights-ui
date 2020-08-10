@@ -1,0 +1,193 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Traffic Lights</title>
+
+    <!-- Add support for Web Components to older browsers. -->
+    <script src="./node_modules/@webcomponents/webcomponentsjs/webcomponents-loader.js"></script>
+
+    <!-- Your application must load the Roboto and Material Icons fonts. -->
+    <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Material+Icons&display=block" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', 'Arial', 'Helvetica', sans-serif;
+        }
+        .container {
+            margin: 0 auto;
+            margin-top: 5%;
+            width: 50%;
+        }
+
+        mwc-textfield.field {
+            width: 100%;
+            display: block;
+            margin-bottom: 5%;
+        }
+
+        mwc-textfield.red {
+            --mdc-theme-primary: firebrick;
+            --mdc-text-field-outlined-idle-border-color: firebrick;
+        }
+        mwc-textfield.yellow {
+            --mdc-theme-primary: gold;
+            --mdc-text-field-outlined-idle-border-color: gold;
+        }
+        mwc-textfield.yellow-red {
+            --mdc-theme-primary: orange;
+            --mdc-text-field-outlined-idle-border-color: orange;
+        }
+        mwc-textfield.green {
+            --mdc-theme-primary: green;
+            --mdc-text-field-outlined-idle-border-color: green;
+        }
+        #button {
+            display: flex;
+            justify-content: center;
+        }
+        .sliderContainer {
+            justify-content: center;
+            margin-bottom: 5%;
+        }
+        #onSlider {
+            --mdc-theme-secondary: blue;
+        }
+        p {
+            font-size: large;
+        }
+    </style>
+  </head>
+  <body>
+      <div class="container">
+        <h1>Traffic Lights Controller</h1>
+        <div class="sliderContainer">
+            <p>On/Off</p>
+            <mwc-switch id="onSlider"></mwc-switch>
+        </div>
+        <mwc-textfield id="greenDuration" class="green field fixed" label="Green duration" type="number" suffix="s" placeholder="60" outlined>
+        </mwc-textfield>
+        <mwc-textfield id="yellowDuration" class="yellow field fixed" label="Yellow duration" type="number" suffix="s" placeholder="60" outlined>
+        </mwc-textfield>
+        <mwc-textfield id="yellowRedDuration" class="yellow-red field fixed" label="Red-Yellow duration" type="number" suffix="s" placeholder="60" outlined>
+        </mwc-textfield>
+        <mwc-textfield id="redLower" class="red field interval" label="Min. Red duration" type="number" suffix="s" placeholder="60" outlined></mwc-textfield>
+        <mwc-textfield id="redUpper" class="red field interval" label="Max. Red duration" type="number" suffix="s" placeholder="60" outlined></mwc-textfield>
+        <mwc-button id="button" label="Update" raised></mwc-button>
+      </div>
+    <script type="module">
+      import '@material/mwc-button';
+      import '@material/mwc-textfield';
+      import '@material/mwc-switch';
+
+      const HOSTNAME = "localhost"
+      const PORT = "8080"
+      const URL = `http://${HOSTNAME}:${PORT}`
+
+      const onSilder = document.querySelector('#onSlider');
+
+      const greenDurationField = document.querySelector('#greenDuration');
+      const yellowDurationField = document.querySelector('#yellowDuration');
+      const yellowRedDurationField = document.querySelector('#yellowRedDuration');
+      const minRedDurationField = document.querySelector('#redLower');
+      const maxRedDurationField = document.querySelector('#redUpper');
+
+      const fields = document.querySelectorAll('.field')
+      const fixeds = document.querySelectorAll('.fixed')
+      const intervals = document.querySelectorAll('.interval')
+
+      // sync
+      const fetchCurrentData = () => { return fetch(`${URL}/config`); };
+      fetchCurrentData().then(data => data.json()).then(json => {
+          greenDurationField.value = json.greenLightDuration;
+          yellowDurationField.value = json.yellowLightDuration;
+          yellowRedDurationField.value = json.yellowRedLightDuration;
+          minRedDurationField.value = json.lowerIntervalBorder;
+          maxRedDurationField.value = json.upperIntervalBorder;
+      });
+
+      // validity
+      const biggerThanZeroConstraint = (newValue, nativeValidity) => {
+          if (!nativeValidity.valid) {
+              return {};
+          }
+
+          const isValid = (newValue > 0 || newValue == "")
+          console.log(`Is valid: ${isValid}`)
+          return {
+              valid: isValid,
+              customError: !isValid
+          };
+      }
+
+      var validityCheckBreak = true;
+
+      const validInterval = (newValue, nativeValidity, currentElement) => {
+          if (!nativeValidity.valid) {
+              return {};
+          }
+
+          const isValid = (newValue > 0 || newValue == "")  && parseInt(minRedDurationField.value) < parseInt(maxRedDurationField.value);
+          console.log(`Is valid: ${isValid}`);
+
+          return {
+              valid: isValid,
+              customError: !isValid
+          };
+      }
+
+      fixeds.forEach(element => {
+          element.validityTransform = biggerThanZeroConstraint 
+      });
+
+      minRedDurationField.addEventListener('change', () => maxRedDurationField.checkValidity());
+      maxRedDurationField.addEventListener('change', () => minRedDurationField.checkValidity());
+      
+      intervals.forEach(element => {
+          element.validityTransform = (newValue, nativeValidity) => validInterval(newValue, nativeValidity, element);
+      });
+
+      // fetching
+      const inputDataToJSON = () => {
+        return {
+            lowerIntervalBorder: minRedDurationField.value,
+            upperIntervalBorder: maxRedDurationField.value,
+            greenLightDuration: greenDurationField.value,
+            yellowLightDuration: yellowDurationField.value,
+            yellowRedLightDuration: yellowRedDurationField.value
+        }
+      }
+      const updateServerData = () => {
+          const allValid = [... fields].reduce((x,y) => x && y.checkValidity(), fields, true);
+          if (!allValid) {
+              [... fields].filter(element => !element.checkValidity()).forEach(element => console.log(element.value));
+              
+              console.log("Some fields seem to be invalid.");
+              return;
+          }
+          const data = inputDataToJSON();
+          const res = fetch(`${URL}/config`, {
+              method: 'POST',
+              body: JSON.stringify(data)
+            }).then(res => {
+                if (!res.ok) {
+                    console.log("Update failed.");
+                    alert("Update failed.");
+                    return;
+                }
+
+                if (onSilder.checked) {
+                    fetch(`${URL}/start`);
+                } else {
+                    fetch(`${URL}/stop`);
+                }
+            });
+      }
+
+      const button = document.querySelector('#button');
+      button.addEventListener('click', () => {
+        updateServerData()
+      });
+    </script>
+  </body>
+</html>
