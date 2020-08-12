@@ -1,0 +1,73 @@
+body {
+    font-family: 'Roboto', 'Arial', 'Helvetica', sans-serif;
+}
+
+.container {
+    margin: 0 auto;
+    margin-top: 8%;
+    width: 80%;
+}
+
+mwc-textfield.field {
+    width: 100%;
+    display: block;
+    margin-bottom: 40px;
+}
+
+mwc-textfield.red {
+    --mdc-theme-primary: firebrick;
+    --mdc-text-field-outlined-idle-border-color: firebrick;
+}
+
+mwc-textfield.yellow {
+    --mdc-theme-primary: gold;
+    --mdc-text-field-outlined-idle-border-color: gold;
+}
+
+mwc-textfield.yellow-red {
+    --mdc-theme-primary: orange;
+    --mdc-text-field-outlined-idle-border-color: orange;
+}
+
+mwc-textfield.green {
+    --mdc-theme-primary: green;
+    --mdc-text-field-outlined-idle-border-color: green;
+}
+
+mwc-button {
+    width: calc(50% - 5px);
+}
+
+#sync {
+    float: right;
+    --mdc-theme-primary: darkslategrey;
+}
+
+.sliderContainer {
+    justify-content: center;
+    margin-bottom: 40px;
+}
+
+#onSlider {
+    --mdc-theme-secondary: blue;
+}
+
+p {
+    font-size: large;
+}
+#stateFooter {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    color: white;
+    text-align: center;
+    visibility: hidden;
+}
+.offline {
+    background-color: firebrick;
+}
+
+.online {
+    background-color: forestgreen;
+}
