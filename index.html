@@ -112,6 +112,7 @@
       const UPDATE_FAILED = "Updating the traffic lights configuration failed.";
       const ON_OFF_FAILED = "Turning the traffic lights on or off failed.";
       const NO_CONNECTION_ERROR = "Cannot connect to the traffic lights controller.";
+      const LIGHT_CONTROLLER_DOWN_ERROR = "The traffic light controller does not react.";
       const UNEXPECTEND_ERROR_WHILE_START_OR_STOP = "An unexpected error occurred while starting or stopping the traffic lights controller.";
       const UNEXPECTED_ERROR_WHILE_UPDATING = "An unexpected error occurred while updating the traffic lights configuration."
 
@@ -194,6 +195,10 @@
             onSilder.checked = true;
         } else if (res.status === 204) {
             onSilder.checked = false;
+        } else if (res && !res.ok) {
+            throw LIGHT_CONTROLLER_DOWN_ERROR;
+        } else {
+            throw NO_CONNECTION_ERROR;
         }
       });
 
@@ -306,7 +311,7 @@
                       reportSuccess('Successfully updated the traffic lights configuration.');
                       return;
                   }
-                  reportSuccess(`Successfully updated the configuration and ${operation}ed the traffic lights.`);
+                  reportSuccess(`Successfully updated the configuration and ${operation} the traffic lights.`);
               }).catch(err => {
                   switch (err) {
                       case ON_OFF_FAILED:
@@ -337,10 +342,10 @@
 
                 if (onSilder.checked) {
                     const startPromise = fetch(`${URL}/start`);
-                    handleStartStopFetchPromise(startPromise, 'start');
+                    handleStartStopFetchPromise(startPromise, 'started');
                 } else { 
                     const startPromise = fetch(`${URL}/stop`);
-                    handleStartStopFetchPromise(startPromise, 'stop');
+                    handleStartStopFetchPromise(startPromise, 'stopped');
                 }
             }).catch(err => { 
                 switch (err) {
