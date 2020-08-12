@@ -14,16 +14,17 @@
         body {
             font-family: 'Roboto', 'Arial', 'Helvetica', sans-serif;
         }
+
         .container {
             margin: 0 auto;
-            margin-top: 5%;
-            width: 50%;
+            margin-top: 8%;
+            width: 80%;
         }
 
         mwc-textfield.field {
             width: 100%;
             display: block;
-            margin-bottom: 5%;
+            margin-bottom: 40px;
         }
 
         mwc-textfield.red {
@@ -48,7 +49,7 @@
         }
         .sliderContainer {
             justify-content: center;
-            margin-bottom: 5%;
+            margin-bottom: 40px;
         }
         #onSlider {
             --mdc-theme-secondary: blue;
@@ -56,6 +57,22 @@
         p {
             font-size: large;
         }
+        #stateFooter {
+            position: fixed;
+            left: 0;
+            bottom: 0;
+            width: 100%;
+            color: white;
+            text-align: center;
+            visibility: hidden;
+        }
+        .offline {
+            background-color: firebrick;
+        }
+        .online {
+            background-color: forestgreen;
+        }
+
     </style>
   </head>
   <body>
@@ -74,16 +91,34 @@
         <mwc-textfield id="redLower" class="red field interval" label="Min. Red duration" type="number" suffix="s" placeholder="60" outlined></mwc-textfield>
         <mwc-textfield id="redUpper" class="red field interval" label="Max. Red duration" type="number" suffix="s" placeholder="60" outlined></mwc-textfield>
         <mwc-button id="button" label="Update" raised></mwc-button>
+        <mwc-snackbar id="event-toast" labelText="" timeoutMs="4000">
+            <mwc-icon-button icon="close" slot="dismiss"></mwc-icon-button>
+        </mwc-snackbar>
+        <div id="stateFooter" class="offline" >Offline</div>
       </div>
     <script type="module">
       import '@material/mwc-button';
+      import '@material/mwc-icon-button';
       import '@material/mwc-textfield';
       import '@material/mwc-switch';
+      import '@material/mwc-snackbar';
 
-      const HOSTNAME = "localhost"
-      const PORT = "8080"
-      const URL = `http://${HOSTNAME}:${PORT}`
+      // server config
+      const HOSTNAME = "localhost";
+      const PORT = "8080";
+      const URL = `http://${HOSTNAME}:${PORT}`;
 
+      // errors
+      const UPDATE_FAILED = "Updating the traffic lights configuration failed.";
+      const ON_OFF_FAILED = "Turning the traffic lights on or off failed.";
+      const NO_CONNECTION_ERROR = "Cannot connect to the traffic lights controller.";
+      const UNEXPECTEND_ERROR_WHILE_START_OR_STOP = "An unexpected error occurred while starting or stopping the traffic lights controller.";
+      const UNEXPECTED_ERROR_WHILE_UPDATING = "An unexpected error occurred while updating the traffic lights configuration."
+
+      var currentStateOnline;
+      var syncInterval;
+
+      // elements
       const onSilder = document.querySelector('#onSlider');
 
       const greenDurationField = document.querySelector('#greenDuration');
@@ -92,19 +127,71 @@
       const minRedDurationField = document.querySelector('#redLower');
       const maxRedDurationField = document.querySelector('#redUpper');
 
-      const fields = document.querySelectorAll('.field')
-      const fixeds = document.querySelectorAll('.fixed')
-      const intervals = document.querySelectorAll('.interval')
+      const fields = document.querySelectorAll('.field');
+      const fixeds = document.querySelectorAll('.fixed');
+      const intervals = document.querySelectorAll('.interval');
 
-      // sync
-      const fetchCurrentData = () => { return fetch(`${URL}/config`); };
-      fetchCurrentData().then(data => data.json()).then(json => {
+      const eventToast = document.querySelector('#event-toast');
+      const stateFooter = document.querySelector('#stateFooter');
+
+      // check if controller is alive
+      const isAlive = () => new Promise(resolve => fetch(`${URL}/heartbeat`).then(res => {
+              resolve(res.ok);
+          }).catch(err => {
+              resolve(false);
+          }));
+      
+
+      // state handling
+      const changeState = isOnline => {
+        if(currentStateOnline == isOnline) {
+            return;
+        }
+
+        if(isOnline == true) {
+            stateFooter.innerHTML = 'online';
+            stateFooter.classList = ['online'];
+            stateFooter.style.visibility = 'visible';
+            currentStateOnline = true;
+            new Promise(resolve => {
+                setTimeout(resolve, 7000);
+            }).then(() => stateFooter.style.visibility = 'hidden');
+        } else {
+            stateFooter.innerHTML = "offline";
+            stateFooter.classList = ['offline'];
+            stateFooter.style.visibility = 'visible';
+
+            currentStateOnline = false;
+            syncInterval = setInterval(() => {
+                isAlive().then(res => {
+                    console.log(`Sync result: ${res}`);
+                    if (res) {
+                        clearInterval(syncInterval);
+                        changeState(true);
+                    }
+                })
+            }, 5000);
+        }
+      }
+
+      // determines initial state
+      isAlive().then(result => changeState(result));
+
+      // fetch config data
+      const fetchCurrentData = () => fetch(`${URL}/config`).then(data => { 
+          return data.json();
+      }).catch(err => {
+          reportError(NO_CONNECTION_ERROR);
+      }).then(json => {
           greenDurationField.value = json.greenLightDuration;
           yellowDurationField.value = json.yellowLightDuration;
           yellowRedDurationField.value = json.yellowRedLightDuration;
           minRedDurationField.value = json.lowerIntervalBorder;
           maxRedDurationField.value = json.upperIntervalBorder;
+          reportSuccess("Loaded current traffic lights configuration.");
       });
+
+      fetchCurrentData();
 
       // validity
       const biggerThanZeroConstraint = (newValue, nativeValidity) => {
@@ -147,6 +234,36 @@
           element.validityTransform = (newValue, nativeValidity) => validInterval(newValue, nativeValidity, element);
       });
 
+      // reporting errors
+      const reportError = error => {
+          eventToast.labelText = error;
+          eventToast.show();
+          if (NO_CONNECTION_ERROR) {
+            changeState(false);
+          }
+      }
+
+      // report validation errors
+      const reportInvalidFields = () => {
+          const invalidFieldMessages = [... fields].filter(field => !field.valid).map(field => `${field.label}: "${field.value}"\n`);
+          let validationReport = 'The following fields are invalid: ';
+          invalidFieldMessages.forEach(message => {
+            if (message != invalidFieldMessages[0]) {
+                validationReport += ', ';
+              }
+            validationReport += message;
+          });
+          eventToast.labelText = validationReport;
+          eventToast.show();
+      }
+
+      // reporting successes
+      const reportSuccess = message => {
+          eventToast.labelText = message;
+          eventToast.show();
+          changeState(true);
+      }
+
       // fetching
       const inputDataToJSON = () => {
         return {
@@ -157,29 +274,78 @@
             yellowRedLightDuration: yellowRedDurationField.value
         }
       }
+
+      // updating server config
       const updateServerData = () => {
           const allValid = [... fields].reduce((x,y) => x && y.checkValidity(), fields, true);
           if (!allValid) {
-              [... fields].filter(element => !element.checkValidity()).forEach(element => console.log(element.value));
-              
+              reportInvalidFields();
               console.log("Some fields seem to be invalid.");
               return;
           }
+
+          const handleStartStopFetchPromise = (prom, operation) => {
+              prom.then(res => {
+                  if(res && !res.ok && res.status === 500) {
+                    throw ON_OFF_FAILED;
+                  } else if(res && !res.ok) {
+                    throw UNEXPECTEND_ERROR_WHILE_START_OR_STOP;
+                  } else if(!res) {
+                    throw NO_CONNECTION_ERROR;
+                  }
+                  if (res.status == 204) {
+                      reportSuccess('Successfully updated the traffic lights configuration.');
+                      return;
+                  }
+                  reportSuccess(`Successfully updated the configuration and ${operation}ed the traffic lights.`);
+              }).catch(err => {
+                  switch (err) {
+                      case ON_OFF_FAILED:
+                        reportError(ON_OFF_FAILED);
+                        break;
+
+                      case UNEXPECTEND_ERROR_WHILE_START_OR_STOP:
+                        reportError(UNEXPECTEND_ERROR_WHILE_START_OR_STOP);
+                        break;
+                  
+                      default:
+                        reportError(NO_CONNECTION_ERROR);
+                        break;
+                  }
+              })
+          }
+
           const data = inputDataToJSON();
           const res = fetch(`${URL}/config`, {
               method: 'POST',
               body: JSON.stringify(data)
-            }).then(res => {
-                if (!res.ok) {
-                    console.log("Update failed.");
-                    alert("Update failed.");
-                    return;
+            }).catch(err => reportError(NO_CONNECTION_ERROR)).then(res => {
+                if (res && !res.ok) {
+                    throw UPDATE_FAILED;
+                } else if(!res) {
+                    throw NO_CONNECTION_ERROR;
                 }
 
                 if (onSilder.checked) {
-                    fetch(`${URL}/start`);
-                } else {
-                    fetch(`${URL}/stop`);
+                    const startPromise = fetch(`${URL}/start`);
+                    handleStartStopFetchPromise(startPromise, 'start');
+                } else { 
+                    const startPromise = fetch(`${URL}/stop`);
+                    handleStartStopFetchPromise(startPromise, 'stop');
+                }
+            }).catch(err => { 
+                switch (err) {
+                    case UPDATE_FAILED:
+                        reportError(err);
+                        break;
+
+                    case NO_CONNECTION_ERROR:
+                        reportError(err);
+                        break;
+                
+                    default:
+                        reportError(UNEXPECTED_ERROR_WHILE_UPDATING);
+                        break;
                 }
             });
       }
