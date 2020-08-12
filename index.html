@@ -174,10 +174,7 @@
         }
       }
 
-      // determines initial state
-      isAlive().then(result => changeState(result));
-
-      // fetch config data
+      // fetches config data
       const fetchCurrentData = () => fetch(`${URL}/config`).then(data => { 
           return data.json();
       }).catch(err => {
@@ -191,7 +188,21 @@
           reportSuccess("Loaded current traffic lights configuration.");
       });
 
-      fetchCurrentData();
+      // fetches state running/paused
+      const fetchCurrentControllerState = () => fetch(`${URL}/config`).then(res => {
+        if(res.status === 200) {
+            onSilder.checked = true;
+        } else if (res.status === 204) {
+            onSilder.checked = false;
+        }
+      });
+
+      // determines initial state
+      isAlive().then(result => {
+          changeState(result);
+          fetchCurrentData();
+          fetchCurrentControllerState();
+      });
 
       // validity
       const biggerThanZeroConstraint = (newValue, nativeValidity) => {
@@ -206,8 +217,6 @@
               customError: !isValid
           };
       }
-
-      var validityCheckBreak = true;
 
       const validInterval = (newValue, nativeValidity, currentElement) => {
           if (!nativeValidity.valid) {
