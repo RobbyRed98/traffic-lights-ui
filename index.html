@@ -114,7 +114,8 @@
       const NO_CONNECTION_ERROR = "Cannot connect to the traffic lights controller.";
       const LIGHT_CONTROLLER_DOWN_ERROR = "The traffic light controller does not react.";
       const UNEXPECTEND_ERROR_WHILE_START_OR_STOP = "An unexpected error occurred while starting or stopping the traffic lights controller.";
-      const UNEXPECTED_ERROR_WHILE_UPDATING = "An unexpected error occurred while updating the traffic lights configuration."
+      const UNEXPECTED_ERROR_WHILE_UPDATING = "An unexpected error occurred while updating the traffic lights configuration.";
+      const NO_CURRENT_CONFIG = "There is no configuration.";
 
       var currentStateOnline;
       var syncInterval;
@@ -176,21 +177,25 @@
       }
 
       // fetches config data
-      const fetchCurrentData = () => fetch(`${URL}/config`).then(data => { 
-          return data.json();
+      const fetchCurrentData = () => fetch(`${URL}/config`).then(res => {
+          console.log(res);
+          if (res.status == 404) {
+              return;
+          }
+          res.json().then(data => {
+            greenDurationField.value = data.greenLightDuration;
+            yellowDurationField.value = data.yellowLightDuration;
+            yellowRedDurationField.value = data.yellowRedLightDuration;
+            minRedDurationField.value = data.lowerIntervalBorder;
+            maxRedDurationField.value = data.upperIntervalBorder;
+            reportSuccess("Loaded current traffic lights configuration.");
+          });
       }).catch(err => {
           reportError(NO_CONNECTION_ERROR);
-      }).then(json => {
-          greenDurationField.value = json.greenLightDuration;
-          yellowDurationField.value = json.yellowLightDuration;
-          yellowRedDurationField.value = json.yellowRedLightDuration;
-          minRedDurationField.value = json.lowerIntervalBorder;
-          maxRedDurationField.value = json.upperIntervalBorder;
-          reportSuccess("Loaded current traffic lights configuration.");
-      });
+      })
 
       // fetches state running/paused
-      const fetchCurrentControllerState = () => fetch(`${URL}/config`).then(res => {
+      const fetchCurrentControllerState = () => fetch(`${URL}/running`).then(res => {
         if(res.status === 200) {
             onSilder.checked = true;
         } else if (res.status === 204) {
@@ -198,7 +203,21 @@
         } else if (res && !res.ok) {
             throw LIGHT_CONTROLLER_DOWN_ERROR;
         } else {
-            throw NO_CONNECTION_ERROR;
+            throw UNEXPECTED_ERROR_WHILE_UPDATING;
+        }
+      }).catch(err => {
+        switch (err) {
+            case LIGHT_CONTROLLER_DOWN_ERROR:
+            reportError(err);
+            break;
+
+            case UNEXPECTED_ERROR_WHILE_UPDATING:
+            reportError(err);
+            break;
+        
+            default:
+            reportError(NO_CONNECTION_ERROR);
+            break;
         }
       });
 
