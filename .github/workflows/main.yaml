@@ -1,0 +1,18 @@
+name: Create a js-bundle
+on: [push]
+jobs:
+  bundle_js:
+    runs-on: ubuntu-18.04
+    steps:
+    - name: Setup Node.js environment
+      uses: actions/setup-node@v1.4.3
+      with:
+        node-version: '12'
+    - run: npm install
+    - name: Building a bundled app
+    - run: npm build
+    - name: Zipping and uploading
+    - uses: actions/upload-artifact@v2
+      with:
+        name: app-bundle
+        path: bundle/index.*

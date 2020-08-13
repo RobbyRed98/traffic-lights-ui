@@ -12,9 +12,14 @@
     "@webcomponents/webcomponentsjs": "^2.4.4",
     "lit-element": "^2.3.1"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "webpack": "^4.44.1",
+    "webpack-cli": "^3.3.12"
+  },
   "scripts": {
-    "start": "es-dev-server --node-resolve --cors true"
+    "build": "mkdir dist -p && rm dist/* && cp index.html dist/ && cp index.css dist/ && sed -i '/webcomponents-loader.js/d' dist/index.html && webpack",
+    "start": "es-dev-server --node-resolve --cors true",
+    "serve-prod": "es-dev-server ./dist --node-resolve --cors true"
   },
   "author": ""
 }
