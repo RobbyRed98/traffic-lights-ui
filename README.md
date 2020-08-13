@@ -1,12 +1,12 @@
 # traffic-lights-ui
 Frontend for the traffic-lights controller.
 
-## Setup 
+## Install dependencies 
 ```bash
 $ npm install
 ```
 
-## Run
+## Run a dev-server
 ```bash
 $ npm run start
 ```
