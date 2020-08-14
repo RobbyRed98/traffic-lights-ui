@@ -18,12 +18,16 @@ $ npm run start
 $ npm run build
 ```
 
-### Add Roboto font offline support to bundle
+### Adding offline support to the bundle
+
+The commands require `sed` tool.
+
+#### Add Roboto font offline support to bundle
 ```bash
 $ npm run add-roboto
 ```
 
-### Add material icons offline support to bundle
+#### Add material icons offline support to bundle
 ```bash
 $ npm run add-icons
 ```
