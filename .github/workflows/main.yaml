@@ -13,6 +13,10 @@ jobs:
       - run: npm install
       - name: Building a bundled app
         run: npm run build
+      - name: Adding roboto font & material icons for offline use
+        run: |
+          npm run add-roboto
+          npm run add-icons
       - name: Zipping and uploading
         uses: actions/upload-artifact@v2
         with:
