@@ -1,12 +1,39 @@
 # traffic-lights-ui
 Frontend for the traffic-lights controller.
 
-## Install dependencies 
+## NPM scripts
+
+### Install dependencies 
 ```bash
 $ npm install
 ```
 
-## Run a dev-server
+### Run a dev-server
 ```bash
 $ npm run start
+```
+
+### Build a bundle
+```bash
+$ npm run build
+```
+
+### Add Roboto font offline support to bundle
+```bash
+$ npm run add-roboto
+```
+
+### Add material icons offline support to bundle
+```bash
+$ npm run add-icons
+```
+
+### Clean build bundle dir (dist)
+```bash
+$ npm run clean
+```
+
+### Serve packed bundle
+```bash
+$ npm run serve-prod
 ```
