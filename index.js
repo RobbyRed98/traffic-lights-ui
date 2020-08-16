@@ -10,16 +10,21 @@ const PORT = "8080";
 const URL = `http://${HOSTNAME}:${PORT}`;
 
 // errors
-const UPDATE_FAILED = "Updating the traffic lights configuration failed.";
-const ON_OFF_FAILED = "Turning the traffic lights on or off failed.";
-const NO_CONNECTION_ERROR = "Cannot connect to the traffic lights controller.";
-const LIGHT_CONTROLLER_DOWN_ERROR = "The traffic light controller does not react.";
-const UNEXPECTEND_ERROR_WHILE_START_OR_STOP = "An unexpected error occurred while starting or stopping the traffic lights controller.";
-const UNEXPECTED_ERROR_WHILE_UPDATING = "An unexpected error occurred while updating the traffic lights configuration.";
-const NO_CURRENT_CONFIG = "There is no configuration.";
+const ErrorCode = Object.freeze({
+    UPDATE_FAILED: "Updating the traffic lights configuration failed.",
+    ON_OFF_FAILED: "Turning the traffic lights on or off failed.",
+    NO_CONNECTION_ERROR: "Cannot connect to the traffic lights controller.",
+    LIGHT_CONTROLLER_DOWN_ERROR: "The traffic light controller does not react.",
+    UNEXPECTEND_ERROR_WHILE_START_OR_STOP: "An unexpected error occurred while starting or stopping the traffic lights controller.",
+    UNEXPECTED_ERROR_WHILE_UPDATING: "An unexpected error occurred while updating the traffic lights configuration."
+});
 
-var currentStateOnline;
-var syncInterval;
+// hint
+const NO_CURRENT_CONFIG = "There is no configuration which can be loaded. Please enter your own one.";
+
+let currentStateOnline;
+let syncInterval;
+let checkOtherInterval;
 
 // elements
 const onSilder = document.querySelector('#onSlider');
@@ -30,9 +35,9 @@ const yellowRedDurationField = document.querySelector('#yellowRedDuration');
 const minRedDurationField = document.querySelector('#redLower');
 const maxRedDurationField = document.querySelector('#redUpper');
 
-const fields = document.querySelectorAll('.field');
-const fixeds = document.querySelectorAll('.fixed');
-const intervals = document.querySelectorAll('.interval');
+const fields = [... document.querySelectorAll('.field')];
+const fixeds = [... document.querySelectorAll('.fixed')];
+const intervals = [... document.querySelectorAll('.interval')];
 
 const eventToast = document.querySelector('#event-toast');
 const stateFooter = document.querySelector('#stateFooter');
@@ -41,12 +46,7 @@ const updateButton = document.querySelector('#update');
 const syncButton = document.querySelector('#sync');
 
 // check if controller is alive
-const isAlive = () => new Promise(resolve => fetch(`${URL}/heartbeat`).then(res => {
-        resolve(res.ok);
-    }).catch(err => {
-        resolve(false);
-    }));
-
+const isAlive = () => new Promise(resolve => fetch(`${URL}/heartbeat`).then(res => resolve(res.ok)).catch(err => resolve(false)));
 
 // state handling
 const changeState = isOnline => {
@@ -84,7 +84,7 @@ const changeState = isOnline => {
 const fetchCurrentData = (onSuccessCallback = () => {}) => fetch(`${URL}/config`).then(res => {
     console.log(res);
     if (res.status == 404) {
-        return;
+        throw NO_CURRENT_CONFIG;
     }
     res.json().then(data => {
         greenDurationField.value = data.greenLightDuration;
@@ -95,7 +95,7 @@ const fetchCurrentData = (onSuccessCallback = () => {}) => fetch(`${URL}/config`
         reportSuccess("Loaded current traffic lights configuration.");
         onSuccessCallback();
     });
-});
+}).catch(err => err == NO_CURRENT_CONFIG ? reportMessage(err): reportError(err));
 
 const fetchCurrentControllerState = () => fetch(`${URL}/running`).then(res => {
     if(res.status === 200) {
@@ -103,31 +103,20 @@ const fetchCurrentControllerState = () => fetch(`${URL}/running`).then(res => {
     } else if (res.status === 204) {
         onSilder.checked = false;
     } else if (res && !res.ok) {
-        throw LIGHT_CONTROLLER_DOWN_ERROR;
+        throw ErrorCode.LIGHT_CONTROLLER_DOWN_ERROR;
     } else {
-        throw UNEXPECTED_ERROR_WHILE_UPDATING;
+        throw ErrorCode.UNEXPECTED_ERROR_WHILE_UPDATING;
     }
-    }).catch(err => {
-    switch (err) {
-        case LIGHT_CONTROLLER_DOWN_ERROR:
-        reportError(err);
-        break;
-
-        case UNEXPECTED_ERROR_WHILE_UPDATING:
-        reportError(err);
-        break;
-
-        default:
-        reportError(NO_CONNECTION_ERROR);
-        break;
-    }
-});
+}).catch(err => handleError(err));
 
 // determines initial state
 const sync = () => isAlive().then(result => {
     changeState(result);
+    if (!result) {
+        throw ErrorCode.NO_CONNECTION_ERROR
+    }
     fetchCurrentData(fetchCurrentControllerState);
-});
+}).catch(err => handleError(err));
 
 sync();
 
@@ -152,6 +141,15 @@ const validInterval = (newValue, nativeValidity, currentElement) => {
     }
 
     const isValid = (newValue > 0 || newValue == "")  && parseInt(minRedDurationField.value) < parseInt(maxRedDurationField.value);
+    if (checkOtherInterval) {
+        console.log("trigger check");
+        const otherElement = currentElement == minRedDurationField ? maxRedDurationField : minRedDurationField;
+        checkOtherInterval = false;
+        otherElement.reportValidity();
+    } else {
+        checkOtherInterval = true;
+    }
+
     console.log(`Is valid: ${isValid}`);
 
     return {
@@ -172,18 +170,27 @@ intervals.forEach(element => {
     element.validityTransform = (newValue, nativeValidity) => validInterval(newValue, nativeValidity, element);
 });
 
-// reporting error messages
-const reportError = error => {
-    eventToast.labelText = error;
+const reportMessage = message => {
+    eventToast.labelText = message;
     eventToast.show();
-    if (NO_CONNECTION_ERROR) {
-    changeState(false);
+}
+
+// reporting error messages
+const reportError = message => {
+    reportMessage(message)
+    if (ErrorCode.NO_CONNECTION_ERROR) {
+        changeState(false);
     }
 };
 
+
+const handleError = (error, defaultErrorCase) => 
+    Object.values(ErrorCode).includes(error) ? reportError(error): reportError(defaultErrorCase);
+
+
 // report validation errors
 const reportInvalidFields = () => {
-    const invalidFieldMessages = [... fields].filter(field => !field.valid).map(field => `${field.label}: "${field.value}"\n`);
+    const invalidFieldMessages = fields.filter(field => !field.valid).map(field => `${field.label}: "${field.value}"\n`);
     let validationReport = 'The following fields are invalid: ';
     invalidFieldMessages.forEach(message => {
         if (message != invalidFieldMessages[0]) {
@@ -197,8 +204,7 @@ const reportInvalidFields = () => {
 
 // reporting successes messages
 const reportSuccess = message => {
-    eventToast.labelText = message;
-    eventToast.show();
+    reportMessage(message)
     changeState(true);
 };
 
@@ -215,78 +221,45 @@ const inputDataToJSON = () => {
 
 // updating server config
 const updateServerData = () => {
-
-    const allValid = [... fields].reduce((x,y) => x && y.checkValidity(), fields, true);
+    const allValid = fields.reduce((x,y) => x && y.checkValidity(), fields, true);
     if (!allValid) {
         reportInvalidFields();
         console.log("Some fields seem to be invalid.");
         return;
     }
 
-    const handleStartStopFetchPromise = (prom, operation) => {
+    const handlePromise = (prom, operation) => {
         prom.then(res => {
             if(res && !res.ok && res.status === 500) {
-            throw ON_OFF_FAILED;
+                throw ErrorCode.ON_OFF_FAILED;
             } else if(res && !res.ok) {
-            throw UNEXPECTEND_ERROR_WHILE_START_OR_STOP;
+                throw ErrorCode.UNEXPECTEND_ERROR_WHILE_START_OR_STOP;
             } else if(!res) {
-            throw NO_CONNECTION_ERROR;
+                throw ErrorCode.NO_CONNECTION_ERROR;
             }
             if (res.status == 204) {
                 reportSuccess('Successfully updated the traffic lights configuration.');
                 return;
             }
             reportSuccess(`Successfully updated the configuration and ${operation} the traffic lights.`);
-        }).catch(err => {
-            switch (err) {
-                case ON_OFF_FAILED:
-                reportError(ON_OFF_FAILED);
-                break;
-
-                case UNEXPECTEND_ERROR_WHILE_START_OR_STOP:
-                reportError(UNEXPECTEND_ERROR_WHILE_START_OR_STOP);
-                break;
-            
-                default:
-                reportError(NO_CONNECTION_ERROR);
-                break;
-            }
-        })
+        }).catch(err => handleError(err))
     }
 
     const data = inputDataToJSON();
     fetch(`${URL}/config`, {
         method: 'POST',
         body: JSON.stringify(data)
-    }).catch(err => reportError(NO_CONNECTION_ERROR)).then(res => {
+    }).catch(err => handleError(err)).then(res => {
         if (res && !res.ok) {
-            throw UPDATE_FAILED;
+            throw ErrorCode.UPDATE_FAILED;
         } else if(!res) {
-            throw NO_CONNECTION_ERROR;
+            throw ErrorCode.NO_CONNECTION_ERROR;
         }
 
-        if (onSilder.checked) {
-            const startPromise = fetch(`${URL}/start`);
-            handleStartStopFetchPromise(startPromise, 'started');
-        } else { 
-            const startPromise = fetch(`${URL}/stop`);
-            handleStartStopFetchPromise(startPromise, 'stopped');
-        }
-    }).catch(err => { 
-        switch (err) {
-            case UPDATE_FAILED:
-                reportError(err);
-                break;
-
-            case NO_CONNECTION_ERROR:
-                reportError(err);
-                break;
-        
-            default:
-                reportError(UNEXPECTED_ERROR_WHILE_UPDATING);
-                break;
-        }
-    });
+        onSilder.checked ?
+            handlePromise(fetch(`${URL}/start`), 'started'):
+            handlePromise(fetch(`${URL}/stop`), 'stopped');
+    }).catch(err => handleError(err, ErrorCode.UNEXPECTED_ERROR_WHILE_UPDATING));
 };
 
 updateButton.addEventListener('click', () => updateServerData());

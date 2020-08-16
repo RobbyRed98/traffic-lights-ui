@@ -21,7 +21,7 @@
     "clean": "rm dist -rf",
     "build": "mkdir dist -p && rm dist/* -rf && cp index.html dist/ && cp index.css dist/ && sed -i '/webcomponents-loader.js/d' dist/index.html && webpack",
     "add-roboto": "mkdir dist/ -p && cp node_modules/roboto-fontface dist/ -r && sed -i 's|https://fonts.googleapis.com/css?family=Roboto:300,400,500|./roboto-fontface/css/roboto/roboto-fontface.css|g' dist/index.html",
-    "add-icons": "mkdir dist/icons -p && wget https://fonts.gstatic.com/s/materialicons/v54/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2 -O dist/icons/material.woff && sed -i 's|https://fonts.gstatic.com/s/materialicons/v54/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2|icons/material.woff|g' dist/index.css",
+    "add-icons": "mkdir dist/icons -p && wget https://fonts.gstatic.com/s/materialicons/v54/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2 -O dist/icons/material.woff && sed -i 's|https://fonts.gstatic.com/s/materialicons/v54/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2|icons/material.woff|g' dist/index.css && sed -i 's|<link href=\"https://fonts.googleapis.com/css?family=Material+Icons&display=block\" rel=\"stylesheet\">| |g' dist/index.html",
     "start": "es-dev-server --node-resolve --cors true",
     "serve": "es-dev-server --node-resolve --cors true",
     "serve-prod": "cd dist && es-dev-server --node-resolve --cors true"
