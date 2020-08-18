@@ -211,11 +211,11 @@ const reportSuccess = message => {
 // current textfield values to json 
 const inputDataToJSON = () => {
     return {
-        lowerIntervalBorder: ParseInt(minRedDurationField.value),
-        upperIntervalBorder: ParseInt(maxRedDurationField.value),
-        greenLightDuration: ParseInt(greenDurationField.value),
-        yellowLightDuration: ParseInt(yellowDurationField.value),
-        yellowRedLightDuration: ParseInt(yellowRedDurationField.value)
+        lowerIntervalBorder: parseInt(minRedDurationField.value),
+        upperIntervalBorder: parseInt(maxRedDurationField.value),
+        greenLightDuration: parseInt(greenDurationField.value),
+        yellowLightDuration: parseInt(yellowDurationField.value),
+        yellowRedLightDuration: parseInt(yellowRedDurationField.value)
     }
 };
 
